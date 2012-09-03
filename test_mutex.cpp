@@ -10,7 +10,7 @@
 //    NOTE: If you get linker errors about the atomic built-in functions (__sync_*),
 //          then add -march=i486 so that they will be included (not available for i386)
 //
-// Add -DNOCHECKS=1 to disable error checking.
+// Add -DDOCHECKS=1 to enable error checking.
 
 #include <semaphore.h>
 #include <pthread.h>
@@ -23,9 +23,7 @@
 #include <stdint.h>
 
 // Prehistoric error checking for brevity
-#if defined(NOCHECKS)
-#   define CHECK(condition) (void)(condition)
-#else
+#if defined(DOCHECKS)
 #   define CHECK(condition) \
         do \
         { \
@@ -36,6 +34,8 @@
             } \
         } \
         while (false)
+#else
+#   define CHECK(condition) (void)(condition)
 #endif
 
 class mutex
