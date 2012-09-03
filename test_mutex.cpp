@@ -6,12 +6,13 @@
 
 // Compilation:
 //
-//    g++ test_mutex.cpp -o test_mutex -Wall -Wextra -Werror -ansi -pedantic -O3
+//    g++ test_mutex.cpp -o test_mutex -Wall -Wextra -Werror -ansi -pedantic -O3 -lpthread -lrt
+//    NOTE: If you get linker errors about the atomic built-in functions (__sync_*),
+//          then add -march=i486 so that they will be included (not available for i386)
 //
 // Add -DNOCHECKS=1 to disable error checking.
 
-#include <dispatch/dispatch.h>
-#include <libkern/osatomic.h>
+#include <semaphore.h>
 #include <pthread.h>
 
 #include <cstdlib>
@@ -53,63 +54,59 @@ class mutex
 class benaphore
 {
     public:
-        benaphore() : count(0) { CHECK( sema = dispatch_semaphore_create(0) ); } // initial count is 0
-        ~benaphore() { dispatch_release(sema); }
+        benaphore() : count(0) { CHECK( sem_init(&sema, 0, 0) == 0); } // initial count is 0
+        ~benaphore() { CHECK( sem_destroy(&sema) == 0 ); }
 
         void lock()
         {
-            // DISPATCH_TIME_FOREVER is unsigned long long (not in ISO C++98/03).
-            // Define our own equivalent.
-            const uint64_t DISPATCH_TIME_FOREVER_u64 = ~uint64_t(0);
-
-            if (OSAtomicIncrement32Barrier(&count) > 1) // if (++count > 1)
-                CHECK( dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER_u64) == 0 ); // wait for unlock
+            // NOTE: The GCC built-ins return the previous value so the values to check against needed to be changed
+            if (__sync_fetch_and_add(&count, 1) > 0) // if (++count > 1)
+                CHECK( sem_wait(&sema) == 0 ); // wait for unlock
         }
 
         void unlock()
         {
-            if (OSAtomicDecrement32Barrier(&count) > 0) // if (--count > 0)
-                dispatch_semaphore_signal(sema); // release a waiting thread
+            // NOTE: The GCC built-ins return the previous value so the values to check against needed to be changed
+            if (__sync_fetch_and_sub(&count, 1) > 1) // if (--count > 0)
+                CHECK( sem_post(&sema) == 0 ); // release a waiting thread
         }
 
     private:
         int32_t count;
-        dispatch_semaphore_t sema;
+        sem_t sema;
 };
 
 class mutex2
 {
     public:
-        mutex2() : count(0) { CHECK( sema = dispatch_semaphore_create(0) ); } // initial count is 0
-        ~mutex2() { dispatch_release(sema); }
+        mutex2() : count(0) { CHECK( sem_init(&sema, 0, 0) == 0); } // initial count is 0
+        ~mutex2() { CHECK( sem_destroy(&sema) == 0 ); }
 
         void lock()
         {
             for (unsigned spins = 0; spins != 5000; ++spins)
             {
-                if (OSAtomicCompareAndSwap32Barrier(0, 1, &count))
+                if (__sync_bool_compare_and_swap(&count, 0, 1))
                     return;
 
                 sched_yield();
             }
 
-            // DISPATCH_TIME_FOREVER is unsigned long long (not in ISO C++98/03).
-            // Define our own equivalent.
-            const uint64_t DISPATCH_TIME_FOREVER_u64 = ~uint64_t(0);
-
-            if (OSAtomicIncrement32Barrier(&count) > 1) // if (++count > 1)
-                CHECK( dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER_u64) == 0 ); // wait for unlock
+            // NOTE: The GCC built-ins return the previous value so the values to check against needed to be changed
+            if (__sync_fetch_and_add(&count, 1) > 0) // if (++count > 1)
+                CHECK( sem_wait(&sema) == 0 ); // wait for unlock
         }
 
         void unlock()
         {
-            if (OSAtomicDecrement32Barrier(&count) > 0) // if (--count > 0)
-                dispatch_semaphore_signal(sema); // release a waiting thread
+            // NOTE: The GCC built-ins return the previous value so the values to check against needed to be changed
+            if (__sync_fetch_and_sub(&count, 1) > 1) // if (--count > 0)
+                CHECK( sem_post(&sema) == 0 ); // release a waiting thread
         }
 
     private:
         int32_t count;
-        dispatch_semaphore_t sema;
+        sem_t sema;
 };
 
 template<typename Mutex>
