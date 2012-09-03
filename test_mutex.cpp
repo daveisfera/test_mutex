@@ -148,9 +148,6 @@ void test_mutex(unsigned num_threads)
 {
     const uint32_t increments = 20 * 1000 * 1000;
 
-    std::cout << "Running test_mutex with " << num_threads << " threads\n";
-    std::cout << "Increments in each thread: " << increments << "\n";
-
     shared_stuff<Mutex> stuff(increments);
 
     std::vector<pthread_t> threads;
@@ -169,8 +166,7 @@ void test_mutex(unsigned num_threads)
         CHECK( pthread_join(threads[t], &retval) == 0 );
     }
         
-    std::cerr << "expected: " << (num_threads * increments) << '\n';
-    std::cerr << "actual:   " << stuff.total << '\n';
+    CHECK ( stuff.total == (num_threads * increments) );
 }
 
 int main(int argc, char **argv)
